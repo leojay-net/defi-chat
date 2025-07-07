@@ -116,7 +116,7 @@ export default function ChatInterface() {
             </div>
 
             {/* Chat messages area */}
-            <div className="flex-1 relative z-10">
+            <div className="flex-1 relative z-10 min-h-0">
                 <ChatMessages
                     messages={messages}
                     onActionClick={handleActionClick}

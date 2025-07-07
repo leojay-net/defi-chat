@@ -11,17 +11,39 @@ interface ChatMessagesProps {
 
 export default function ChatMessages({ messages, onActionClick }: ChatMessagesProps) {
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
 
     const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        if (containerRef.current) {
+            containerRef.current.scrollTop = containerRef.current.scrollHeight;
+        }
     };
 
     useEffect(() => {
-        scrollToBottom();
+        // Only auto-scroll if user is near the bottom (within 100px)
+        if (containerRef.current) {
+            const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
+            const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+
+            if (isNearBottom) {
+                const timer = setTimeout(() => {
+                    scrollToBottom();
+                }, 50);
+
+                return () => clearTimeout(timer);
+            }
+        }
     }, [messages]);
 
     return (
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-black">
+        <div
+            ref={containerRef}
+            className="flex-1 overflow-y-auto p-4 space-y-4 bg-black chat-container"
+            style={{
+                maxHeight: 'calc(100vh - 200px)',
+                minHeight: '400px'
+            }}
+        >
             {messages.length === 0 ? (
                 <div className="flex items-center justify-center h-full">
                     <div className="text-center text-gray-400">
@@ -30,7 +52,7 @@ export default function ChatMessages({ messages, onActionClick }: ChatMessagesPr
                     </div>
                 </div>
             ) : (
-                <div className="space-y-4">
+                <div className="space-y-4 pb-4">
                     {messages.map((message) => (
                         <Message
                             key={message.id}
