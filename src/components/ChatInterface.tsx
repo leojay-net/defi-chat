@@ -123,15 +123,16 @@ export default function ChatInterface() {
             </div>
 
             {/* Chat messages area */}
-            <div className="flex-1 relative z-10 min-h-0">
+            <div className="flex-1 relative z-10 min-h-0 overflow-hidden">
                 <ChatMessages
                     messages={messages}
                     onActionClick={handleActionClick}
+                    isLoading={isLoading}
                 />
             </div>
 
             {/* Chat input */}
-            <div className="relative z-10">
+            <div className="relative z-10 flex-shrink-0">
                 <ChatInput
                     onSendMessage={sendMessage}
                     isLoading={isLoading}

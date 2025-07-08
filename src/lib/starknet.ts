@@ -1,17 +1,10 @@
 import { Contract, RpcProvider, Account, constants } from 'starknet';
 import { DEX_CONTRACT_ABI, ERC20_ABI, TOKENS } from './ABI';
 import { getEkuboQuote, getPoolKeyForSwap, validateAndFormatAmount } from './ekuboApi';
-
-// Type for browser wallet accounts (ArgentX, Braavos, etc.)
-type BrowserWalletAccount = {
-    address: string;
-    execute: (calls: unknown[]) => Promise<{ transaction_hash: string }>;
-    [key: string]: unknown;
-};
+import { StarknetAccount } from '@/types';
 
 // Union type for both starknet.js Account and browser wallet accounts
-// type WalletAccount = Account | BrowserWalletAccount;
-
+type AccountType = Account | StarknetAccount;
 
 export const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || '';
 export const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL || 'https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_8/kwgGr9GGk4YyLXuGfEvpITv1jpvn3PgP';
@@ -21,14 +14,12 @@ export const provider = new RpcProvider({
     chainId: constants.StarknetChainId.SN_SEPOLIA
 });
 
-export function getDexContract(account?: Account | BrowserWalletAccount) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return new Contract(DEX_CONTRACT_ABI, CONTRACT_ADDRESS, account as any || provider);
+export function getDexContract(account?: Account) {
+    return new Contract(DEX_CONTRACT_ABI, CONTRACT_ADDRESS, account || provider);
 }
 
-export function getERC20Contract(tokenAddress: string, account?: Account | BrowserWalletAccount) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return new Contract(ERC20_ABI, tokenAddress, account as any || provider);
+export function getERC20Contract(tokenAddress: string, account?: Account) {
+    return new Contract(ERC20_ABI, tokenAddress, account || provider);
 }
 
 export function stringToFelt252(str: string): string {
@@ -123,7 +114,7 @@ export async function getQuote(
 }
 
 export async function swapTokens(
-    account: Account | BrowserWalletAccount,
+    account: AccountType,
     tokenInAddress: string,
     tokenOutAddress: string,
     amountIn: string,
@@ -266,7 +257,7 @@ export async function swapTokens(
         ]);
         console.log('------------------');
         // Get DEX contract instance
-        const dexContract = getDexContract(account);
+        const dexContract = getDexContract(account as Account);
 
         // Validate contract and connection
         console.log('🔍 Contract validation:');
@@ -302,7 +293,7 @@ export async function swapTokens(
         // Check token allowance and balance before swap
         try {
             console.log('🔍 Checking token allowance and balance...');
-            const tokenContract = getERC20Contract(tokenInAddress, account);
+            const tokenContract = getERC20Contract(tokenInAddress, account as Account);
 
             // Check balance first
             const balance = await tokenContract.balance_of(account.address);
@@ -394,8 +385,7 @@ export async function swapTokens(
                         tokenOutAddress,
                         amountInWei,
                         safeMinAmountOutWei,
-                        recipient,
-                        getCompatibleTransactionOptions('0.01')
+                        recipient
                     );
                     console.log(`✅ Swap submitted with safe minAmountOut=0: ${txResponse.transaction_hash}`);
                     return txResponse.transaction_hash;
@@ -406,8 +396,7 @@ export async function swapTokens(
                         tokenOutAddress,
                         amountInWei,
                         minAmountOutWei,
-                        recipient,
-                        getCompatibleTransactionOptions('0.01')
+                        recipient
                     );
                     console.log(`✅ Swap submitted: ${txResponse.transaction_hash}`);
                     return txResponse.transaction_hash;
@@ -468,33 +457,26 @@ export async function getTokenBalance(
 }
 
 export async function approveToken(
-    account: Account | BrowserWalletAccount,
+    account: AccountType,
     tokenAddress: string,
     spenderAddress: string,
     amount: string,
     decimals: number = 18
 ): Promise<string> {
     try {
-        const tokenContract = getERC20Contract(tokenAddress, account);
+        const tokenContract = getERC20Contract(tokenAddress, account as Account);
         const amountWei = parseUnits(amount, decimals);
 
-        // Use compatible transaction options
-        const txResponse = await tokenContract.approve(
-            spenderAddress,
-            amountWei,
-            getCompatibleTransactionOptions('0.001')
-        );
-
+        const txResponse = await tokenContract.approve(spenderAddress, amountWei);
         return txResponse.transaction_hash;
     } catch (error) {
         console.error('Approval error:', error);
-        const handledError = handleTransactionVersionError(error);
-        throw new Error(`Approval failed: ${handledError.message}`);
+        throw new Error(`Approval failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 }
 
 export async function initiateFiatTransaction(
-    account: Account | BrowserWalletAccount,
+    account: AccountType,
     token: string,
     amount: string,
     fiatAmount: string,
@@ -506,19 +488,13 @@ export async function initiateFiatTransaction(
             throw new Error('Invalid token');
         }
 
-        // Validate fiat amount
-        const fiatAmountNum = parseFloat(fiatAmount);
-        if (fiatAmountNum <= 0 || isNaN(fiatAmountNum)) {
-            throw new Error('Fiat amount must be greater than 0');
-        }
-
         console.log('🏦 Initiating fiat transaction...');
         console.log(`   Token: ${token} (${tokenAddress})`);
         console.log(`   Amount: ${amount}`);
         console.log(`   Fiat Amount: ${fiatAmount}`);
         console.log(`   Transaction ID: ${transactionId}`);
 
-        const dexContract = getDexContract(account);
+        const dexContract = getDexContract(account as Account);
         const tokenAmountWei = parseUnits(amount, 18);
         const fiatAmountWei = parseUnits(fiatAmount, 2); // Assuming 2 decimals for fiat
         const txId = stringToFelt252(transactionId);
@@ -546,10 +522,10 @@ export async function initiateFiatTransaction(
             tokenAddress,
             tokenAmountWei,
             fiatAmountWei,
-            txId,
-            getCompatibleTransactionOptions('0.01')
+            txId
         );
 
+        console.log(`✅ Fiat transaction initiated: ${txResponse.transaction_hash}`);
         return txResponse.transaction_hash;
     } catch (error) {
         console.error('Fiat transaction initiation error:', error);
@@ -558,12 +534,12 @@ export async function initiateFiatTransaction(
 }
 
 export async function confirmFiatTransaction(
-    account: Account | BrowserWalletAccount,
+    account: AccountType,
     userAddress: string,
     transactionId: string
 ): Promise<string> {
     try {
-        const dexContract = getDexContract(account);
+        const dexContract = getDexContract(account as Account);
         const txId = stringToFelt252(transactionId);
 
         const txResponse = await dexContract.confirm_fiat_transaction(
@@ -576,36 +552,6 @@ export async function confirmFiatTransaction(
         console.error('Fiat transaction confirmation error:', error);
         throw new Error(`Fiat confirmation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-}
-
-// Helper function to get transaction options compatible with RPC version
-export function getCompatibleTransactionOptions(maxFeeEth: string = '0.01'): { version: number; maxFee: string } {
-    const maxFeeWei = parseUnits(maxFeeEth, 18);
-    return {
-        version: 3, // Use transaction version 3 for v0.7 RPC compatibility
-        maxFee: maxFeeWei
-    };
-}
-
-// Error handler for transaction version incompatibility
-export function handleTransactionVersionError(error: unknown): Error {
-    const errorMessage = (error as Error)?.message || String(error) || '';
-
-    if (errorMessage.includes('v0,v1,v2 tx are not supported')) {
-        return new Error(
-            'Transaction version incompatibility detected. Please check your RPC configuration. ' +
-            'Try using a compatible RPC endpoint that supports the required transaction version.'
-        );
-    }
-
-    if (errorMessage.includes('Invalid transaction version')) {
-        return new Error(
-            'Invalid transaction version. This may be due to RPC version mismatch. ' +
-            'Please ensure your RPC endpoint supports the transaction version being used.'
-        );
-    }
-
-    return error instanceof Error ? error : new Error(errorMessage);
 }
 
 // Helper function to validate i129 limits for Ekubo
@@ -784,14 +730,14 @@ export async function testSwapAmounts() {
 }
 
 export async function checkAndApproveToken(
-    account: Account | BrowserWalletAccount,
+    account: AccountType,
     tokenAddress: string,
     spenderAddress: string,
     amount: string,
     decimals: number = 18
 ): Promise<{ needsApproval: boolean; approvalTxHash?: string; currentAllowance: string }> {
     try {
-        const tokenContract = getERC20Contract(tokenAddress, account);
+        const tokenContract = getERC20Contract(tokenAddress, account as Account);
         const amountWei = parseUnits(amount, decimals);
         const amountBigInt = BigInt(amountWei);
 

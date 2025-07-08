@@ -1,34 +1,25 @@
-import { ChatMessage, ChatSession, ChatHistoryState, TransactionData, SuggestedAction } from '@/types';
+import { ChatMessage, ChatSession, ChatHistoryState } from '@/types';
 
-const CHAT_HISTORY_KEY = 'defi_chat_history';
-const MAX_SESSIONS = 50; // Limit to prevent storage overflow
-
-// Serialized types for localStorage
-interface SerializedChatMessage {
-    id: string;
-    role: 'user' | 'assistant' | 'system';
-    content: string;
-    timestamp: string;
-    metadata?: {
-        transactionData?: TransactionData;
-        suggestedActions?: SuggestedAction[];
-        confirmationRequired?: boolean;
-    };
-}
-
-interface SerializedChatSession {
+// Types for localStorage serialization
+interface SerializedSession {
     id: string;
     title: string;
-    messages: SerializedChatMessage[];
+    messages: SerializedMessage[];
     createdAt: string;
     lastUpdated: string;
     walletAddress?: string;
 }
 
-interface SerializedChatHistoryState {
-    currentSessionId: string | null;
-    sessions: SerializedChatSession[];
+interface SerializedMessage {
+    id: string;
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+    timestamp: string;
+    metadata?: Record<string, unknown>;
 }
+
+const CHAT_HISTORY_KEY = 'defi_chat_history';
+const MAX_SESSIONS = 50; // Limit to prevent storage overflow
 
 export class ChatHistoryManager {
     static generateSessionTitle(messages: ChatMessage[]): string {
@@ -43,10 +34,12 @@ export class ChatHistoryManager {
 
         // Fallback to timestamp-based title
         return `Chat ${new Date().toLocaleDateString()}`;
-    } static saveToLocalStorage(state: ChatHistoryState): void {
+    }
+
+    static saveToLocalStorage(state: ChatHistoryState): void {
         try {
             // Convert dates to strings for JSON serialization
-            const serializable: SerializedChatHistoryState = {
+            const serializable = {
                 ...state,
                 sessions: state.sessions.map(session => ({
                     ...session,
@@ -72,16 +65,16 @@ export class ChatHistoryManager {
                 return { currentSessionId: null, sessions: [] };
             }
 
-            const parsed: SerializedChatHistoryState = JSON.parse(stored);
+            const parsed = JSON.parse(stored);
 
             // Convert string dates back to Date objects
             return {
                 ...parsed,
-                sessions: parsed.sessions.map((session: SerializedChatSession) => ({
+                sessions: parsed.sessions.map((session: SerializedSession) => ({
                     ...session,
                     createdAt: new Date(session.createdAt),
                     lastUpdated: new Date(session.lastUpdated),
-                    messages: session.messages.map((msg: SerializedChatMessage) => ({
+                    messages: session.messages.map((msg: SerializedMessage) => ({
                         ...msg,
                         timestamp: new Date(msg.timestamp)
                     }))

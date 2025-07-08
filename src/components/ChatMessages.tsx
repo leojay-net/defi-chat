@@ -7,41 +7,40 @@ import Message from './Message';
 interface ChatMessagesProps {
     messages: ChatMessage[];
     onActionClick: (actionId: string, actionType: string, data?: Record<string, unknown>) => void;
+    isLoading?: boolean;
 }
 
-export default function ChatMessages({ messages, onActionClick }: ChatMessagesProps) {
+export default function ChatMessages({ messages, onActionClick, isLoading = false }: ChatMessagesProps) {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
 
     const scrollToBottom = () => {
         if (containerRef.current) {
-            containerRef.current.scrollTop = containerRef.current.scrollHeight;
+            containerRef.current.scrollTo({
+                top: containerRef.current.scrollHeight,
+                behavior: 'smooth'
+            });
         }
     };
 
     useEffect(() => {
-        // Only auto-scroll if user is near the bottom (within 100px)
-        if (containerRef.current) {
-            const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
-            const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+        // Always scroll to bottom when AI is generating or when new messages are added
+        if (isLoading || messages.length > 0) {
+            const timer = setTimeout(() => {
+                scrollToBottom();
+            }, 100); // Slightly longer delay to ensure content is rendered
 
-            if (isNearBottom) {
-                const timer = setTimeout(() => {
-                    scrollToBottom();
-                }, 50);
-
-                return () => clearTimeout(timer);
-            }
+            return () => clearTimeout(timer);
         }
-    }, [messages]);
+    }, [messages, isLoading]);
 
     return (
         <div
             ref={containerRef}
             className="flex-1 overflow-y-auto p-4 space-y-4 bg-black chat-container"
             style={{
-                maxHeight: 'calc(100vh - 200px)',
-                minHeight: '400px'
+                height: '100%',
+                minHeight: '0'
             }}
         >
             {messages.length === 0 ? (

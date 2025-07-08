@@ -44,6 +44,8 @@ html {
 .chat-container {
   scrollbar-width: thin;
   scrollbar-color: #4a5568 #1a1a1a;
+  scroll-behavior: smooth;
+  overflow-anchor: none;
 }
 
 /* Chat-specific scrollbar styling */
