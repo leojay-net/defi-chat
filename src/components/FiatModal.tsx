@@ -7,8 +7,7 @@ import { initiateFiatTransaction } from '@/lib/starknet';
 import { createRecipient, initiateTransfer, listBanks, convertCryptoToFiat, verifyAccount } from '@/lib/paystack';
 import { useEkuboTokens } from '@/hooks/useEkuboTokens';
 import './ui/modal.css';
-import { Account, SignerInterface, ProviderInterface } from 'starknet';
-import { provider as fallbackProvider } from '@/lib/starknet';
+// Removed unused imports since we're using the wallet account directly
 
 interface Bank {
     id: number;
@@ -131,6 +130,11 @@ export default function FiatModal({ isOpen, onClose, initialData, onExecute }: F
             return;
         }
 
+        if (estimatedFiat <= 0) {
+            alert('Please wait for the fiat amount to be calculated or try a different amount');
+            return;
+        }
+
         setIsLoading(true);
         try {
             // Generate transaction ID
@@ -143,32 +147,16 @@ export default function FiatModal({ isOpen, onClose, initialData, onExecute }: F
                 bankAccount.accountName
             );
 
-            // Convert StarknetAccount to Account (starknet.js)
+            // Use the wallet account directly - browser wallets handle signing internally
             const walletAccount = connection.account as StarknetAccount;
-            // Try to get the signer from the wallet account
-            const signer: SignerInterface | undefined = (walletAccount as unknown as { signer?: SignerInterface; _signer?: SignerInterface }).signer || (walletAccount as unknown as { signer?: SignerInterface; _signer?: SignerInterface })._signer;
-            const provider = connection.provider;
-            const address = walletAccount.address;
-            if (!signer) {
-                throw new Error('Wallet signer not found. Please ensure your wallet exposes a signer.');
-            }
-            if (!provider) {
-                throw new Error('Wallet provider not found. Please ensure your wallet exposes a provider.');
-            }
-            function isProviderInterface(obj: unknown): obj is ProviderInterface {
-                return !!obj && typeof obj === 'object' && typeof (obj as ProviderInterface).callContract === 'function';
-            }
-            let providerToUse: ProviderInterface;
-            if (isProviderInterface(provider)) {
-                providerToUse = provider;
-            } else {
-                providerToUse = fallbackProvider;
-            }
-            const accountInstance = new Account(providerToUse, address, signer);
 
-            // Initiate fiat transaction on Starknet
+            if (!walletAccount) {
+                throw new Error('Wallet account not found. Please ensure your wallet is properly connected.');
+            }
+
+            // Initiate fiat transaction on Starknet using the wallet account directly
             const txHash = await initiateFiatTransaction(
-                accountInstance,
+                walletAccount,
                 formData.tokenIn,
                 formData.amountIn,
                 estimatedFiat.toString(),
@@ -363,7 +351,7 @@ export default function FiatModal({ isOpen, onClose, initialData, onExecute }: F
                             {/* Submit Button */}
                             <button
                                 type="submit"
-                                disabled={!connection.isConnected || isLoading || !bankAccount.accountName || !formData.tokenIn || !formData.amountIn}
+                                disabled={!connection.isConnected || isLoading || !bankAccount.accountName || !formData.tokenIn || !formData.amountIn || estimatedFiat <= 0}
                                 className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors"
                             >
                                 {isLoading ? 'Processing Conversion...' : 'Convert to Fiat'}

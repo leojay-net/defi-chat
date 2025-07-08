@@ -4,9 +4,17 @@ import { useState, useCallback, useEffect, useMemo } from 'react';
 import { ChatMessage, AIAnalysisResult, TransactionData } from '@/types';
 import { AIAssistant } from '@/lib/aiAssistant';
 import { useWallet } from '@/contexts/WalletContext';
+import { useChatHistory } from './useChatHistory';
 
 const useChat = () => {
     const { connection } = useWallet();
+    const {
+        createNewSession,
+        updateCurrentSession,
+        loadSession,
+        currentSessionId,
+        currentSession
+    } = useChatHistory();
 
     const getInitialSuggestedActions = useCallback(() => {
         if (connection.isConnected) {
@@ -23,19 +31,43 @@ const useChat = () => {
         }
     }, [connection.isConnected]);
 
-    const [messages, setMessages] = useState<ChatMessage[]>([
-        {
-            id: '1',
-            role: 'assistant',
-            content: 'Hello! I\'m your DeFi assistant. I can help you with token swaps, crypto-to-fiat conversions, and portfolio management. What would you like to do today?',
-            timestamp: new Date(),
-            metadata: {
-                suggestedActions: getInitialSuggestedActions()
-            }
+    // Create a stable initial message that doesn't change unless wallet connection changes
+    const initialMessage = useMemo(() => ({
+        id: '1',
+        role: 'assistant' as const,
+        content: 'Hello! I\'m your DeFi assistant. I can help you with token swaps, crypto-to-fiat conversions, and portfolio management. What would you like to do today?',
+        timestamp: new Date(),
+        metadata: {
+            suggestedActions: getInitialSuggestedActions()
         }
-    ]);
+    }), [getInitialSuggestedActions]);
+
+    const [messages, setMessages] = useState<ChatMessage[]>([initialMessage]);
     const [isLoading, setIsLoading] = useState(false);
+    const [isInitialized, setIsInitialized] = useState(false);
     const aiAssistant = useMemo(() => new AIAssistant(), []);
+
+    // Initialize session only once
+    useEffect(() => {
+        if (!isInitialized) {
+            if (currentSession && currentSession.messages.length > 0) {
+                // Load existing session
+                setMessages(currentSession.messages);
+            } else if (!currentSessionId) {
+                // Create new session with initial message
+                setMessages([initialMessage]);
+                createNewSession([initialMessage]);
+            }
+            setIsInitialized(true);
+        }
+    }, [currentSession, currentSessionId, createNewSession, initialMessage, isInitialized]);
+
+    // Update session whenever messages change (but only after initialization)
+    useEffect(() => {
+        if (isInitialized && currentSessionId && messages.length > 0) {
+            updateCurrentSession(messages);
+        }
+    }, [messages, currentSessionId, updateCurrentSession, isInitialized]);
 
     const sendMessage = useCallback(async (content: string) => {
         const userMessage: ChatMessage = {
@@ -85,68 +117,47 @@ const useChat = () => {
     }, [aiAssistant]);
 
     const clearChat = useCallback(() => {
-        setMessages([messages[0]]); // Keep the initial greeting
-    }, [messages]);
+        setMessages([initialMessage]);
+        // Create new session
+        createNewSession([initialMessage]);
+    }, [initialMessage, createNewSession]);
 
-    // Update initial message suggested actions when wallet connection changes
+    const loadChatSession = useCallback((sessionId: string) => {
+        const sessionMessages = loadSession(sessionId);
+        if (sessionMessages) {
+            setMessages(sessionMessages.length > 0 ? sessionMessages : [initialMessage]);
+        }
+    }, [loadSession, initialMessage]);
+
+    // Update suggested actions when wallet connection changes (only for the first message)
     useEffect(() => {
-        setMessages(prevMessages => {
-            const updatedMessages = [...prevMessages];
-            if (updatedMessages[0]?.id === '1') {
-                updatedMessages[0] = {
-                    ...updatedMessages[0],
-                    metadata: {
-                        ...updatedMessages[0].metadata,
-                        suggestedActions: getInitialSuggestedActions()
-                    }
-                };
-            }
-            return updatedMessages;
-        });
-    }, [connection.isConnected, getInitialSuggestedActions]);
+        if (isInitialized) {
+            setMessages(prevMessages => {
+                if (prevMessages.length > 0 && prevMessages[0]?.id === '1') {
+                    const updatedMessages = [...prevMessages];
+                    updatedMessages[0] = {
+                        ...updatedMessages[0],
+                        metadata: {
+                            ...updatedMessages[0].metadata,
+                            suggestedActions: getInitialSuggestedActions()
+                        }
+                    };
+                    return updatedMessages;
+                }
+                return prevMessages;
+            });
+        }
+    }, [connection.isConnected, getInitialSuggestedActions, isInitialized]);
 
     return {
         messages,
         isLoading,
         sendMessage,
-        clearChat
+        clearChat,
+        loadChatSession,
+        currentSessionId
     };
 };
-
-// Helper functions for mock AI analysis
-// These are kept for potential future use
-// function extractToken(text: string, tokens: string[], isSecond = false): string | undefined {
-//     const matches = tokens.filter(token =>
-//         text.toLowerCase().includes(token.toLowerCase())
-//     );
-
-//     if (isSecond && matches.length > 1) {
-//         return matches[1];
-//     }
-
-//     return matches[0];
-// }
-
-// function extractAmount(text: string): string | undefined {
-//     const amountMatch = text.match(/(\d+\.?\d*)/);
-//     return amountMatch ? amountMatch[1] : undefined;
-// }
-
-// function generateMockResponse(input: string): string {
-//     if (input.toLowerCase().includes('swap')) {
-//         return "I can help you swap tokens! Please specify which tokens you'd like to swap and the amount.";
-//     }
-
-//     if (input.toLowerCase().includes('convert') || input.toLowerCase().includes('fiat')) {
-//         return "I can help you convert your crypto to fiat currency. Which token would you like to convert and to which currency?";
-//     }
-
-//     if (input.toLowerCase().includes('balance') || input.toLowerCase().includes('portfolio')) {
-//         return "I can show you your portfolio balance. Please connect your wallet first.";
-//     }
-
-//     return "I'm here to help with your DeFi needs! You can ask me to swap tokens, convert to fiat, or check your portfolio.";
-// }
 
 function generateSuggestedActions(analysis: AIAnalysisResult) {
     const actions = [];

@@ -114,7 +114,7 @@ export default function SwapModal({ isOpen, onClose, initialData, onExecute }: S
             console.error('Error checking allowance:', error);
             setAllowanceStatus(prev => ({ ...prev, checking: false }));
         }
-    }, [connection.account, connection.isConnected, formData.tokenIn, formData.amountIn, availableTokens]);
+    }, [connection.account, connection.isConnected, connection.provider, formData.tokenIn, formData.amountIn, availableTokens]);
 
     // Check allowance when form data changes
     useEffect(() => {

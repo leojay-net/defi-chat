@@ -4,16 +4,19 @@ import { useState } from 'react';
 import { TransactionData, BankAccount } from '@/types';
 import { useWallet } from '@/contexts/WalletContext';
 import useChat from '@/hooks/useChat';
+import { useChatHistory } from '@/hooks/useChatHistory';
 import WalletConnection from './WalletConnection';
 import ChatMessages from './ChatMessages';
 import ChatInput from './ChatInput';
 import SwapModal from './SwapModal';
 import FiatModal from './FiatModal';
+import ChatHistorySidebar from './ChatHistorySidebar';
 import { RotateCcw, Activity, Zap, TrendingUp } from 'lucide-react';
 
 export default function ChatInterface() {
     const { connection } = useWallet();
-    const { messages, isLoading, sendMessage, clearChat } = useChat();
+    const { messages, isLoading, sendMessage, clearChat, loadChatSession } = useChat();
+    const { } = useChatHistory(); // Initialize chat history hook
     const [showSwapModal, setShowSwapModal] = useState(false);
     const [showFiatModal, setShowFiatModal] = useState(false);
     const [modalInitialData, setModalInitialData] = useState<Partial<TransactionData> | undefined>();
@@ -99,6 +102,9 @@ export default function ChatInterface() {
 
     return (
         <div className="flex flex-col h-screen bg-black text-white relative overflow-hidden">
+            {/* Chat History Sidebar */}
+            <ChatHistorySidebar onLoadSession={loadChatSession} />
+
             {/* Background Pattern */}
             <div className="absolute inset-0 opacity-5">
                 <div className="absolute inset-0" style={{
@@ -112,6 +118,7 @@ export default function ChatInterface() {
                 <WalletConnection
                     onOpenSwapModal={() => setShowSwapModal(true)}
                     onOpenFiatModal={() => setShowFiatModal(true)}
+                    onNewChat={clearChat}
                 />
             </div>
 

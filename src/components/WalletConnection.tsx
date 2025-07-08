@@ -1,17 +1,16 @@
 'use client';
 
 import { useWallet } from '@/contexts/WalletContext';
-import { Wallet, LogOut, User, ArrowUpDown, DollarSign, Shield, Copy } from 'lucide-react';
+import { Wallet, LogOut, User, ArrowUpDown, DollarSign, Shield, Copy, Plus } from 'lucide-react';
 
 interface WalletConnectionProps {
     onOpenSwapModal?: () => void;
     onOpenFiatModal?: () => void;
+    onNewChat?: () => void;
 }
 
-export default function WalletConnection({ onOpenSwapModal, onOpenFiatModal }: WalletConnectionProps) {
+export default function WalletConnection({ onOpenSwapModal, onOpenFiatModal, onNewChat }: WalletConnectionProps) {
     const { connection, connect, disconnect, isConnecting, error } = useWallet();
-
-    console.log('WalletConnection - Current connection state:', connection); // Debug log
 
     const formatAddress = (address: string) => {
         if (!address) return '';
@@ -34,6 +33,16 @@ export default function WalletConnection({ onOpenSwapModal, onOpenFiatModal }: W
                 </div>
 
                 <div className="flex items-center space-x-3">
+                    {/* New Chat Button */}
+                    <button
+                        onClick={onNewChat}
+                        className="flex items-center space-x-1 px-3 py-2 bg-gray-700/50 hover:bg-gray-600/50 text-gray-300 hover:text-white text-sm rounded-lg transition-all duration-200 border border-gray-600/30"
+                        title="Start New Chat"
+                    >
+                        <Plus className="w-4 h-4" />
+                        <span className="hidden sm:inline">New Chat</span>
+                    </button>
+
                     {!connection.isConnected ? (
                         <button
                             onClick={connect}

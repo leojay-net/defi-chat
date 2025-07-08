@@ -11,6 +11,21 @@ export interface ChatMessage {
     };
 }
 
+// Chat session types for history
+export interface ChatSession {
+    id: string;
+    title: string;
+    messages: ChatMessage[];
+    createdAt: Date;
+    lastUpdated: Date;
+    walletAddress?: string;
+}
+
+export interface ChatHistoryState {
+    currentSessionId: string | null;
+    sessions: ChatSession[];
+}
+
 export interface TransactionData {
     type: 'swap' | 'fiat_conversion' | 'liquidity';
     tokenIn?: string;
